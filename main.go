@@ -1,0 +1,91 @@
+package main
+
+import (
+	"log"
+	"net"
+	"os"
+
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv4"
+)
+
+type Pinger struct {
+	conn *icmp.PacketConn
+}
+
+func NewPinger() (*Pinger, error) {
+	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Pinger{conn}, nil
+}
+
+func (p *Pinger) Ping(target string) error {
+	dst := &net.IPAddr{IP: net.ParseIP(target)}
+
+	req, err := (&icmp.Message{
+		Type: ipv4.ICMPTypeEcho,
+		Code: 0,
+		Body: &icmp.Echo{
+			ID:   os.Getpid() & 0xffff,
+			Seq:  1,
+			Data: []byte("hello, world"),
+		},
+	}).Marshal(nil)
+	if err != nil {
+		return err
+	}
+
+	if _, err := p.conn.WriteTo(req, dst); err != nil {
+		return err
+	}
+
+	buf := make([]byte, 1500)
+	for {
+		n, peer, err := p.conn.ReadFrom(buf)
+		if err != nil {
+			log.Println(err)
+		}
+
+		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
+		if err != nil {
+			log.Println(err)
+		}
+
+		if msg.Type == ipv4.ICMPTypeEchoReply {
+			if peer.String() == dst.String() {
+				log.Printf("got reply from %s: %v\n", peer, msg)
+				break
+			} else {
+				log.Printf("got irrelevant reply from %s: %v\n", peer, msg)
+			}
+		} else {
+			log.Printf("got unknown ICMP message from %s: %v\n", peer, msg)
+		}
+	}
+
+	return nil
+}
+
+func (p *Pinger) Close() error {
+	return p.conn.Close()
+}
+
+func main() {
+	pinger, err := NewPinger()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer pinger.Close()
+
+	if len(os.Args) < 2 {
+		log.Fatalln("please specify the target IP")
+	}
+	err = pinger.Ping(os.Args[1])
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Println("Success")
+}

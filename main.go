@@ -56,7 +56,9 @@ func (p *Pinger) Ping(target string) error {
 
 		if msg.Type == ipv4.ICMPTypeEchoReply {
 			if peer.String() == dst.String() {
-				log.Printf("got reply from %s: %v\n", peer, msg)
+				len := msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
+				reply := msg.Body.(*icmp.Echo)
+				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
 				break
 			} else {
 				log.Printf("got irrelevant reply from %s: %v\n", peer, msg)

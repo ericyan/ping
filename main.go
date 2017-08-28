@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
@@ -25,13 +26,18 @@ func NewPinger() (*Pinger, error) {
 func (p *Pinger) Ping(target string) error {
 	dst := &net.IPAddr{IP: net.ParseIP(target)}
 
+	ts, err := time.Now().MarshalBinary()
+	if err != nil {
+		return err
+	}
+
 	req, err := (&icmp.Message{
 		Type: ipv4.ICMPTypeEcho,
 		Code: 0,
 		Body: &icmp.Echo{
 			ID:   os.Getpid() & 0xffff,
 			Seq:  1,
-			Data: []byte("hello, world"),
+			Data: ts,
 		},
 	}).Marshal(nil)
 	if err != nil {
@@ -58,7 +64,17 @@ func (p *Pinger) Ping(target string) error {
 			if peer.String() == dst.String() {
 				len := msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
 				reply := msg.Body.(*icmp.Echo)
-				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
+
+				var rtt float64
+				ts := new(time.Time)
+				err = ts.UnmarshalBinary(reply.Data)
+				if err != nil {
+					log.Println(err)
+					rtt = -1
+				}
+				rtt = float64(time.Now().Sub(*ts)) / float64(time.Millisecond)
+
+				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d rtt=%f\n", len, peer, reply.ID, reply.Seq, rtt)
 				break
 			} else {
 				log.Printf("got irrelevant reply from %s: %v\n", peer, msg)

@@ -55,6 +55,9 @@ func (p *Pinger) Ping(target string) error {
 			log.Println(err)
 		}
 
+		// Record receive time asap
+		now := time.Now()
+
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
 		if err != nil {
 			log.Println(err)
@@ -72,7 +75,7 @@ func (p *Pinger) Ping(target string) error {
 					log.Println(err)
 					rtt = -1
 				}
-				rtt = float64(time.Now().Sub(*ts)) / float64(time.Millisecond)
+				rtt = float64(now.Sub(*ts)) / float64(time.Millisecond)
 
 				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d rtt=%f\n", len, peer, reply.ID, reply.Seq, rtt)
 				break

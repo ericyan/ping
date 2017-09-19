@@ -64,10 +64,10 @@ func (p *Pinger) Ping(target string) error {
 		}
 
 		if msg.Type == ipv4.ICMPTypeEchoReply {
-			if peer.String() == dst.String() {
-				len := msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
-				reply := msg.Body.(*icmp.Echo)
+			len := msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
+			reply := msg.Body.(*icmp.Echo)
 
+			if peer.String() == dst.String() {
 				var rtt float64
 				ts := new(time.Time)
 				err = ts.UnmarshalBinary(reply.Data)
@@ -80,10 +80,10 @@ func (p *Pinger) Ping(target string) error {
 				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d rtt=%f\n", len, peer, reply.ID, reply.Seq, rtt)
 				break
 			} else {
-				log.Printf("got irrelevant reply from %s: %v\n", peer, msg)
+				log.Printf("%d bytes from %s (irrelevant): icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
 			}
 		} else {
-			log.Printf("got unknown ICMP message from %s: %v\n", peer, msg)
+			log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
 		}
 	}
 

@@ -64,7 +64,8 @@ func (p *Pinger) Ping(target string) error {
 		}
 
 		if msg.Type == ipv4.ICMPTypeEchoReply {
-			len := msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
+			// The first 32 bits of the ICMP message is not included in icmp.MessageBody
+			len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
 			reply := msg.Body.(*icmp.Echo)
 
 			if peer.String() == dst.String() {

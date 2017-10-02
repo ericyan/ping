@@ -1,4 +1,4 @@
-package main
+package ping
 
 import (
 	"log"
@@ -93,21 +93,4 @@ func (p *Pinger) Ping(target string) error {
 
 func (p *Pinger) Close() error {
 	return p.conn.Close()
-}
-
-func main() {
-	pinger, err := NewPinger()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	defer pinger.Close()
-
-	if len(os.Args) < 2 {
-		log.Fatalln("please specify the target IP")
-	}
-	err = pinger.Ping(os.Args[1])
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println("Success")
 }

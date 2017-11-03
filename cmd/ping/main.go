@@ -17,9 +17,9 @@ func main() {
 	if len(os.Args) < 2 {
 		log.Fatalln("please specify the target IP")
 	}
-	err = pinger.Ping(os.Args[1])
+	rtt, err := pinger.Ping(os.Args[1])
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalf("status=fail reason=%s", err)
 	}
-	log.Println("Success")
+	log.Printf("status=success rtt=%f", rtt)
 }

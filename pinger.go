@@ -23,12 +23,12 @@ func NewPinger() (*Pinger, error) {
 	return &Pinger{conn}, nil
 }
 
-func (p *Pinger) Ping(target string) error {
+func (p *Pinger) Ping(target string) (float64, error) {
 	dst := &net.IPAddr{IP: net.ParseIP(target)}
 
 	ts, err := time.Now().MarshalBinary()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	req, err := (&icmp.Message{
@@ -41,18 +41,18 @@ func (p *Pinger) Ping(target string) error {
 		},
 	}).Marshal(nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if _, err := p.conn.WriteTo(req, dst); err != nil {
-		return err
+		return 0, err
 	}
 
 	buf := make([]byte, 1500)
 	for {
 		n, peer, err := p.conn.ReadFrom(buf)
 		if err != nil {
-			log.Println(err)
+			return 0, err
 		}
 
 		// Record receive time asap
@@ -60,35 +60,29 @@ func (p *Pinger) Ping(target string) error {
 
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
 		if err != nil {
-			log.Println(err)
+			return 0, err
 		}
 
 		if msg.Type == ipv4.ICMPTypeEchoReply {
 			// The first 32 bits of the ICMP message is not included in icmp.MessageBody
 			len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
 			reply := msg.Body.(*icmp.Echo)
+			log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
 
 			if peer.String() == dst.String() {
-				var rtt float64
 				ts := new(time.Time)
 				err = ts.UnmarshalBinary(reply.Data)
 				if err != nil {
-					log.Println(err)
-					rtt = -1
+					return 0, err
 				}
-				rtt = float64(now.Sub(*ts)) / float64(time.Millisecond)
 
-				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d rtt=%f\n", len, peer, reply.ID, reply.Seq, rtt)
-				break
-			} else {
-				log.Printf("%d bytes from %s (irrelevant): icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
+				rtt := float64(now.Sub(*ts)) / float64(time.Millisecond)
+				return rtt, nil
 			}
 		} else {
 			log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
 		}
 	}
-
-	return nil
 }
 
 func (p *Pinger) Close() error {

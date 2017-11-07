@@ -15,11 +15,15 @@ func main() {
 	defer pinger.Close()
 
 	if len(os.Args) < 2 {
-		log.Fatalln("please specify the target IP")
+		log.Fatalln("please specify at least one target IP")
 	}
-	rtt, err := pinger.Ping(os.Args[1])
-	if err != nil {
-		log.Fatalf("status=fail reason=%s", err)
+
+	for i := 1; i < len(os.Args); i++ {
+		target := os.Args[i]
+		rtt, err := pinger.Ping(target)
+		if err != nil {
+			log.Printf("target=%s status=fail reason=%s", err, target)
+		}
+		log.Printf("target=%s status=success rtt=%f", target, rtt)
 	}
-	log.Printf("status=success rtt=%f", rtt)
 }

@@ -11,16 +11,18 @@ import (
 )
 
 type Pinger struct {
+	id   int
 	conn *icmp.PacketConn
 }
 
 func NewPinger() (*Pinger, error) {
+	id := os.Getpid() & 0xffff
 	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return nil, err
 	}
 
-	return &Pinger{conn}, nil
+	return &Pinger{id, conn}, nil
 }
 
 func (p *Pinger) Ping(target string) (float64, error) {
@@ -35,7 +37,7 @@ func (p *Pinger) Ping(target string) (float64, error) {
 		Type: ipv4.ICMPTypeEcho,
 		Code: 0,
 		Body: &icmp.Echo{
-			ID:   os.Getpid() & 0xffff,
+			ID:   p.id,
 			Seq:  1,
 			Data: ts,
 		},

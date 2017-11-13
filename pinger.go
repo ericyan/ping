@@ -25,9 +25,7 @@ func NewPinger() (*Pinger, error) {
 	return &Pinger{id, conn}, nil
 }
 
-func (p *Pinger) Ping(target string) (float64, error) {
-	dst := &net.IPAddr{IP: net.ParseIP(target)}
-
+func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 	ts, err := time.Now().MarshalBinary()
 	if err != nil {
 		return 0, err

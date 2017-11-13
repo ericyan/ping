@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 	"os"
 
 	"github.com/ericyan/ping"
@@ -19,7 +20,7 @@ func main() {
 	}
 
 	for i := 1; i < len(os.Args); i++ {
-		target := os.Args[i]
+		target := &net.IPAddr{IP: net.ParseIP(os.Args[i])}
 		rtt, err := pinger.Ping(target)
 		if err != nil {
 			log.Printf("target=%s status=fail reason=%s", err, target)

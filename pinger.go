@@ -10,9 +10,16 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+type message struct {
+	t    time.Time
+	body icmp.MessageBody
+	err  error
+}
+
 type Pinger struct {
 	id   int
 	conn *icmp.PacketConn
+	recv map[string]chan *message
 }
 
 func NewPinger() (*Pinger, error) {
@@ -21,11 +28,60 @@ func NewPinger() (*Pinger, error) {
 	if err != nil {
 		return nil, err
 	}
+	recv := make(map[string]chan *message)
+	p := &Pinger{id, conn, recv}
 
-	return &Pinger{id, conn}, nil
+	go func(p *Pinger) {
+		buf := make([]byte, 1500)
+		for {
+			n, peer, err := p.conn.ReadFrom(buf)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			// Record receive time asap
+			now := time.Now()
+
+			msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			if msg.Type == ipv4.ICMPTypeEchoReply {
+				reply := msg.Body.(*icmp.Echo)
+
+				// Ignore messages for other pingers
+				if reply.ID != p.id {
+					continue
+				}
+
+				// The first 32 bits of the ICMP message is not included in icmp.MessageBody
+				len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
+				log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
+
+				for dst, c := range p.recv {
+					if peer.String() == dst {
+						c <- &message{now, msg.Body, nil}
+					}
+				}
+			} else {
+				log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
+			}
+		}
+	}(p)
+
+	return p, nil
 }
 
 func (p *Pinger) Ping(dst net.Addr) (float64, error) {
+	p.recv[dst.String()] = make(chan *message)
+	defer func() {
+		close(p.recv[dst.String()])
+		delete(p.recv, dst.String())
+	}()
+
 	ts, err := time.Now().MarshalBinary()
 	if err != nil {
 		return 0, err
@@ -48,47 +104,18 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		return 0, err
 	}
 
-	buf := make([]byte, 1500)
-	for {
-		n, peer, err := p.conn.ReadFrom(buf)
-		if err != nil {
-			return 0, err
-		}
-
-		// Record receive time asap
-		now := time.Now()
-
-		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
-		if err != nil {
-			return 0, err
-		}
-
-		if msg.Type == ipv4.ICMPTypeEchoReply {
-			reply := msg.Body.(*icmp.Echo)
-
-			// Ignore messages for other pingers
-			if reply.ID != p.id {
-				continue
-			}
-
-			// The first 32 bits of the ICMP message is not included in icmp.MessageBody
-			len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
-			log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
-
-			if peer.String() == dst.String() {
-				ts := new(time.Time)
-				err = ts.UnmarshalBinary(reply.Data)
-				if err != nil {
-					return 0, err
-				}
-
-				rtt := float64(now.Sub(*ts)) / float64(time.Millisecond)
-				return rtt, nil
-			}
-		} else {
-			log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
-		}
+	reply := <-p.recv[dst.String()]
+	if reply.err != nil {
+		return 0, reply.err
 	}
+	t := new(time.Time)
+	err = t.UnmarshalBinary(reply.body.(*icmp.Echo).Data)
+	if err != nil {
+		return 0, err
+	}
+
+	rtt := float64(reply.t.Sub(*t)) / float64(time.Millisecond)
+	return rtt, nil
 }
 
 func (p *Pinger) Close() error {

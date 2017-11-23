@@ -2,8 +2,8 @@ package ping
 
 import (
 	"log"
+	"math/rand"
 	"net"
-	"os"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -24,7 +24,8 @@ type Pinger struct {
 }
 
 func NewPinger() (*Pinger, error) {
-	id := os.Getpid() & 0xffff
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	id := int(r.Int63() & 0xffff)
 	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return nil, err

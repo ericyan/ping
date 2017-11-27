@@ -23,8 +23,9 @@ func main() {
 		target := &net.IPAddr{IP: net.ParseIP(os.Args[i])}
 		rtt, err := pinger.Ping(target)
 		if err != nil {
-			log.Printf("target=%s status=fail reason=%s", err, target)
+			log.Printf("target=%s status=fail reason=%s", target, err)
+		} else {
+			log.Printf("target=%s status=success rtt=%f", target, rtt)
 		}
-		log.Printf("target=%s status=success rtt=%f", target, rtt)
 	}
 }

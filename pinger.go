@@ -93,10 +93,12 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		delete(p.recv, dst.String())
 	}()
 
+	payload := make([]byte, 56)
 	ts, err := time.Now().MarshalBinary()
 	if err != nil {
 		return 0, err
 	}
+	copy(payload, ts)
 
 	req, err := (&icmp.Message{
 		Type: ipv4.ICMPTypeEcho,
@@ -104,7 +106,7 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		Body: &icmp.Echo{
 			ID:   p.id,
 			Seq:  1,
-			Data: ts,
+			Data: payload,
 		},
 	}).Marshal(nil)
 	if err != nil {
@@ -120,7 +122,7 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		return 0, reply.err
 	}
 	t := new(time.Time)
-	err = t.UnmarshalBinary(reply.body.(*icmp.Echo).Data)
+	err = t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:15])
 	if err != nil {
 		return 0, err
 	}

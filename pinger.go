@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/ericyan/ping/internal/timestamp"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 )
@@ -94,7 +95,7 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 	}()
 
 	payload := make([]byte, 56)
-	ts, _ := Now().MarshalBinary()
+	ts, _ := timestamp.Now().MarshalBinary()
 	copy(payload, ts)
 
 	req, err := (&icmp.Message{
@@ -118,7 +119,7 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 	if reply.err != nil {
 		return 0, reply.err
 	}
-	t := new(Timestamp)
+	t := new(timestamp.Timestamp)
 	t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:8])
 	pingTime := time.Unix(int64(*t)/int64(time.Second), int64(*t)%int64(time.Second))
 

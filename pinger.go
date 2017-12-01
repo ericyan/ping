@@ -121,9 +121,8 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 	}
 	t := new(timestamp.Timestamp)
 	t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:8])
-	pingTime := time.Unix(int64(*t)/int64(time.Second), int64(*t)%int64(time.Second))
 
-	rtt := float64(reply.t.Sub(pingTime)) / float64(time.Millisecond)
+	rtt := float64(reply.t.Sub(t.Time())) / float64(time.Millisecond)
 	return rtt, nil
 }
 

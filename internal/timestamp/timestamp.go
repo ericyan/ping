@@ -11,6 +11,11 @@ func Now() Timestamp {
 	return Timestamp(time.Now().UnixNano())
 }
 
+// Time returns the Time in UTC.
+func (t Timestamp) Time() time.Time {
+	return time.Unix(int64(t)/int64(time.Second), int64(t)%int64(time.Second)).UTC()
+}
+
 // MarshalBinary implements the encoding.BinaryMarshaler interface.
 func (t Timestamp) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 8)

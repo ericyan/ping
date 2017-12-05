@@ -22,25 +22,30 @@ type Pinger struct {
 	conn *icmp.PacketConn
 	recv map[string]chan *message
 	stop chan bool
+
+	Timeout uint // Timeout in milliseconds
 }
 
 func NewPinger() (*Pinger, error) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	id := int(r.Int63() & 0xffff)
 	conn, err := icmp.ListenPacket("ip4:icmp", "0.0.0.0")
 	if err != nil {
 		return nil, err
 	}
-	recv := make(map[string]chan *message)
-	stop := make(chan bool)
-	p := &Pinger{id, conn, recv, stop}
+	p := &Pinger{
+		id:      int(r.Int63() & 0xffff),
+		conn:    conn,
+		recv:    make(map[string]chan *message),
+		stop:    make(chan bool),
+		Timeout: 1000,
+	}
 
 	go func(p *Pinger) {
 		buf := make([]byte, 1500)
 		for {
 			select {
 			default:
-				p.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+				p.conn.SetReadDeadline(time.Now().Add(time.Duration(p.Timeout) * time.Millisecond))
 
 				n, peer, err := p.conn.ReadFrom(buf)
 				if err != nil {

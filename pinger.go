@@ -1,6 +1,7 @@
 package ping
 
 import (
+	"errors"
 	"log"
 	"math/rand"
 	"net"
@@ -127,15 +128,19 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		return 0, err
 	}
 
-	reply := <-p.recv[dst.String()]
-	if reply.err != nil {
-		return 0, reply.err
-	}
-	t := new(timestamp.Timestamp)
-	t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:8])
+	select {
+	case reply := <-p.recv[dst.String()]:
+		if reply.err != nil {
+			return 0, reply.err
+		}
+		t := new(timestamp.Timestamp)
+		t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:8])
 
-	rtt := float64(reply.t.Sub(t.Time())) / float64(time.Millisecond)
-	return rtt, nil
+		rtt := float64(reply.t.Sub(t.Time())) / float64(time.Millisecond)
+		return rtt, nil
+	case <-time.After(time.Duration(p.Timeout) * time.Millisecond):
+		return 0, errors.New("timeout")
+	}
 }
 
 func (p *Pinger) Close() error {

@@ -49,6 +49,13 @@ func NewPinger() (*Pinger, error) {
 
 				n, peer, err := p.conn.ReadFrom(buf)
 				if err != nil {
+					// Ignore read timeout errors
+					if neterr, ok := err.(*net.OpError); ok {
+						if neterr.Timeout() {
+							continue
+						}
+					}
+
 					log.Println(err)
 					continue
 				}

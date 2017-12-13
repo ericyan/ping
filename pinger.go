@@ -70,7 +70,9 @@ func NewPinger() (*Pinger, error) {
 					continue
 				}
 
-				if msg.Type == ipv4.ICMPTypeEchoReply {
+				var result *message
+				switch msg.Type {
+				case ipv4.ICMPTypeEchoReply:
 					reply := msg.Body.(*icmp.Echo)
 
 					// Ignore messages for other pingers
@@ -82,13 +84,17 @@ func NewPinger() (*Pinger, error) {
 					len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
 					log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
 
-					for dst, c := range p.recv {
-						if peer.String() == dst {
-							c <- &message{now, msg.Body, nil}
-						}
-					}
-				} else {
+					result = &message{now, msg.Body, nil}
+				case ipv4.ICMPTypeEcho:
+					// Ignore echo requests
+				default:
 					log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
+				}
+
+				if result != nil {
+					if c, ok := p.recv[peer.String()]; ok {
+						c <- result
+					}
 				}
 			case <-p.stop:
 				close(p.stop)

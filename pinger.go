@@ -38,7 +38,7 @@ func NewPinger() (*Pinger, error) {
 		conn:    conn,
 		recv:    make(map[string]chan *message),
 		stop:    make(chan bool),
-		Timeout: 1000,
+		Timeout: 3000,
 	}
 
 	go func(p *Pinger) {

@@ -87,6 +87,20 @@ func NewPinger() (*Pinger, error) {
 					result = &message{now, msg.Body, nil}
 				case ipv4.ICMPTypeEcho:
 					// Ignore echo requests
+				case ipv4.ICMPTypeDestinationUnreachable:
+					reply := msg.Body.(*icmp.DstUnreach)
+					msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					req := msg.Body.(*icmp.Echo)
+
+					// Ignore messages for other pingers
+					if req.ID != p.id {
+						continue
+					}
+					log.Printf("Destination unreachable from %s for icmp_id=%d icmp_seq=%d\n", peer, req.ID, req.Seq)
 				default:
 					log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
 				}

@@ -100,7 +100,24 @@ func NewPinger() (*Pinger, error) {
 					if req.ID != p.id {
 						continue
 					}
-					log.Printf("Destination unreachable from %s for icmp_id=%d icmp_seq=%d\n", peer, req.ID, req.Seq)
+
+					switch msg.Code {
+					case 0:
+						err = errors.New("net unreachable")
+					case 1:
+						err = errors.New("host unreachable")
+					case 2:
+						err = errors.New("protocol unreachable")
+					case 3:
+						err = errors.New("port unreachable")
+					case 4:
+						err = errors.New("fragmentation needed")
+					case 5:
+						err = errors.New("source route failed")
+					default:
+						err = errors.New("destination unreachable")
+					}
+					log.Printf("error from %s: %s for icmp_id=%d icmp_seq=%d\n", peer, err, req.ID, req.Seq)
 				default:
 					log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
 				}

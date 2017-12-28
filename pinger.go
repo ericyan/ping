@@ -118,6 +118,29 @@ func NewPinger() (*Pinger, error) {
 						err = errors.New("destination unreachable")
 					}
 					log.Printf("error from %s: %s for icmp_id=%d icmp_seq=%d\n", peer, err, req.ID, req.Seq)
+				case ipv4.ICMPTypeTimeExceeded:
+					reply := msg.Body.(*icmp.TimeExceeded)
+					msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					req := msg.Body.(*icmp.Echo)
+
+					// Ignore messages for other pingers
+					if req.ID != p.id {
+						continue
+					}
+
+					switch msg.Code {
+					case 0:
+						err = errors.New("TTL exceeded in transit")
+					case 1:
+						err = errors.New("fragment reassembly time exceeded")
+					default:
+						err = errors.New("time exceeded")
+					}
+					log.Printf("error from %s: %s for icmp_id=%d icmp_seq=%d\n", peer, err, req.ID, req.Seq)
 				default:
 					log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
 				}

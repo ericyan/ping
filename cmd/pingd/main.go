@@ -28,10 +28,18 @@ var (
 		},
 		[]string{"target"},
 	)
+	totalRequests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "ping_requests_total",
+			Help: "Total number of ping requests sent.",
+		},
+		[]string{"target"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(rttHistogram)
+	prometheus.MustRegister(totalRequests)
 }
 
 func main() {
@@ -60,6 +68,8 @@ func main() {
 				} else {
 					rttHistogram.With(prometheus.Labels{"target": ip.String()}).Observe(rtt / 1000)
 				}
+
+				totalRequests.With(prometheus.Labels{"target": ip.String()}).Inc()
 			}
 		}(ip)
 	}

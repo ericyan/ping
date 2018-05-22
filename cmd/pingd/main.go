@@ -26,14 +26,14 @@ var (
 			Help:    "Ping round-trip time in seconds.",
 			Buckets: []float64{0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.3, 0.5, 1},
 		},
-		[]string{"target"},
+		[]string{"src", "target"},
 	)
 	totalRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "ping_requests_total",
 			Help: "Total number of ping requests sent.",
 		},
-		[]string{"target"},
+		[]string{"src", "target"},
 	)
 )
 
@@ -66,10 +66,10 @@ func main() {
 				if err != nil {
 					log.Printf("target=%s status=fail reason=%s", ip.String(), err)
 				} else {
-					rttHistogram.With(prometheus.Labels{"target": ip.String()}).Observe(rtt / 1000)
+					rttHistogram.With(prometheus.Labels{"src": *bind, "target": ip.String()}).Observe(rtt / 1000)
 				}
 
-				totalRequests.With(prometheus.Labels{"target": ip.String()}).Inc()
+				totalRequests.With(prometheus.Labels{"src": *bind, "target": ip.String()}).Inc()
 			}
 		}(ip)
 	}

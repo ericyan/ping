@@ -19,6 +19,85 @@ type message struct {
 	err  error
 }
 
+func parseMessage(id int, buf []byte) *message {
+	// Record receive time asap
+	now := time.Now()
+
+	msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf)
+	if err != nil {
+		return &message{now, nil, err}
+	}
+
+	switch msg.Type {
+	case ipv4.ICMPTypeEchoReply:
+		reply := msg.Body.(*icmp.Echo)
+
+		// Ignore messages for other pingers
+		if reply.ID != id {
+			return &message{now, nil, nil}
+		}
+
+		return &message{now, msg.Body, nil}
+	case ipv4.ICMPTypeEcho:
+		// Ignore echo requests
+		return &message{now, nil, nil}
+	case ipv4.ICMPTypeDestinationUnreachable:
+		reply := msg.Body.(*icmp.DstUnreach)
+		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
+		if err != nil {
+			return &message{now, nil, err}
+		}
+		req := msg.Body.(*icmp.Echo)
+
+		// Ignore messages for other pingers
+		if req.ID != id {
+			return &message{now, nil, nil}
+		}
+
+		switch msg.Code {
+		case 0:
+			err = errors.New("net unreachable")
+		case 1:
+			err = errors.New("host unreachable")
+		case 2:
+			err = errors.New("protocol unreachable")
+		case 3:
+			err = errors.New("port unreachable")
+		case 4:
+			err = errors.New("fragmentation needed")
+		case 5:
+			err = errors.New("source route failed")
+		default:
+			err = errors.New("destination unreachable")
+		}
+		return &message{now, msg.Body, err}
+	case ipv4.ICMPTypeTimeExceeded:
+		reply := msg.Body.(*icmp.TimeExceeded)
+		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
+		if err != nil {
+			return &message{now, nil, err}
+		}
+		req := msg.Body.(*icmp.Echo)
+
+		// Ignore messages for other pingers
+		if req.ID != id {
+			return &message{now, nil, nil}
+		}
+
+		switch msg.Code {
+		case 0:
+			err = errors.New("TTL exceeded in transit")
+		case 1:
+			err = errors.New("fragment reassembly time exceeded")
+		default:
+			err = errors.New("time exceeded")
+		}
+		return &message{now, msg.Body, err}
+	default:
+		return &message{now, nil, nil}
+	}
+}
+
 type Pinger struct {
 	id   int
 	conn *icmp.PacketConn
@@ -64,91 +143,8 @@ func NewPinger() (*Pinger, error) {
 					continue
 				}
 
-				// Record receive time asap
-				now := time.Now()
-
-				msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf[:n])
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-
-				var result *message
-				switch msg.Type {
-				case ipv4.ICMPTypeEchoReply:
-					reply := msg.Body.(*icmp.Echo)
-
-					// Ignore messages for other pingers
-					if reply.ID != p.id {
-						continue
-					}
-
-					// The first 32 bits of the ICMP message is not included in icmp.MessageBody
-					len := 4 + msg.Body.Len(ipv4.ICMPTypeEchoReply.Protocol())
-					log.Printf("%d bytes from %s: icmp_id=%d icmp_seq=%d\n", len, peer, reply.ID, reply.Seq)
-
-					result = &message{now, msg.Body, nil}
-				case ipv4.ICMPTypeEcho:
-					// Ignore echo requests
-				case ipv4.ICMPTypeDestinationUnreachable:
-					reply := msg.Body.(*icmp.DstUnreach)
-					msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-					req := msg.Body.(*icmp.Echo)
-
-					// Ignore messages for other pingers
-					if req.ID != p.id {
-						continue
-					}
-
-					switch msg.Code {
-					case 0:
-						err = errors.New("net unreachable")
-					case 1:
-						err = errors.New("host unreachable")
-					case 2:
-						err = errors.New("protocol unreachable")
-					case 3:
-						err = errors.New("port unreachable")
-					case 4:
-						err = errors.New("fragmentation needed")
-					case 5:
-						err = errors.New("source route failed")
-					default:
-						err = errors.New("destination unreachable")
-					}
-					log.Printf("error from %s: %s for icmp_id=%d icmp_seq=%d\n", peer, err, req.ID, req.Seq)
-				case ipv4.ICMPTypeTimeExceeded:
-					reply := msg.Body.(*icmp.TimeExceeded)
-					msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
-					if err != nil {
-						log.Println(err)
-						continue
-					}
-					req := msg.Body.(*icmp.Echo)
-
-					// Ignore messages for other pingers
-					if req.ID != p.id {
-						continue
-					}
-
-					switch msg.Code {
-					case 0:
-						err = errors.New("TTL exceeded in transit")
-					case 1:
-						err = errors.New("fragment reassembly time exceeded")
-					default:
-						err = errors.New("time exceeded")
-					}
-					log.Printf("error from %s: %s for icmp_id=%d icmp_seq=%d\n", peer, err, req.ID, req.Seq)
-				default:
-					log.Printf("got unknown ICMP message from %s: type=%d\n", peer, msg.Type)
-				}
-
-				if result != nil {
+				result := parseMessage(p.id, buf[:n])
+				if result.body != nil || result.err != nil {
 					if c, ok := p.recv[peer.String()]; ok {
 						c <- result
 					}

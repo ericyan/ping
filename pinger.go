@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/ericyan/ping/internal/timestamp"
@@ -21,6 +22,7 @@ type message struct {
 type Pinger struct {
 	id   int
 	conn *icmp.PacketConn
+	mu   *sync.Mutex
 	recv map[string]chan *message
 	stop chan bool
 
@@ -36,6 +38,7 @@ func NewPinger() (*Pinger, error) {
 	p := &Pinger{
 		id:      int(r.Int63() & 0xffff),
 		conn:    conn,
+		mu:      new(sync.Mutex),
 		recv:    make(map[string]chan *message),
 		stop:    make(chan bool),
 		Timeout: 3000,
@@ -161,10 +164,12 @@ func NewPinger() (*Pinger, error) {
 }
 
 func (p *Pinger) Ping(dst net.Addr) (float64, error) {
+	p.mu.Lock()
 	p.recv[dst.String()] = make(chan *message)
 	defer func() {
 		close(p.recv[dst.String()])
 		delete(p.recv, dst.String())
+		p.mu.Unlock()
 	}()
 
 	payload := make([]byte, 56)

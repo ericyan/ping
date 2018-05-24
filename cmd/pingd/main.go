@@ -63,9 +63,7 @@ func main() {
 		go func(ip net.IP) {
 			for range time.Tick(time.Duration(*interval) * time.Second) {
 				rtt, err := pinger.Ping(&net.IPAddr{IP: ip})
-				if err != nil {
-					log.Printf("dst=%s status=fail reason=%s", ip.String(), err)
-				} else {
+				if err == nil {
 					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Observe(rtt / 1000)
 				}
 
@@ -75,5 +73,7 @@ func main() {
 	}
 
 	http.Handle("/metrics", promhttp.Handler())
+
+	log.Printf("Serving metrics at http://%s:%s/metrics", *bind, strconv.Itoa(*port))
 	log.Fatal(http.ListenAndServe(*bind+":"+strconv.Itoa(*port), nil))
 }

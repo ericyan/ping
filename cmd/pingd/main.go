@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -17,6 +19,7 @@ var (
 	bind     = flag.String("bind", "0.0.0.0", "interface to bind")
 	port     = flag.Int("port", 9344, "port to listen on for HTTP requests")
 	interval = flag.Int("interval", 3, "seconds to wait between sending each packet")
+	dstList  = flag.String("list", "./dst.list", "path to destination list")
 )
 
 var (
@@ -44,8 +47,20 @@ func init() {
 
 func main() {
 	flag.Parse()
-	if flag.NArg() < 1 {
-		log.Fatalln("please specify at least one destination IP")
+
+	f, err := os.Open(*dstList)
+	defer f.Close()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var dsts []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		dsts = append(dsts, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatalln(err)
 	}
 
 	pinger, err := ping.NewPinger()
@@ -54,7 +69,7 @@ func main() {
 	}
 	defer pinger.Close()
 
-	for _, dst := range flag.Args() {
+	for _, dst := range dsts {
 		ip := net.ParseIP(dst)
 		if ip == nil {
 			log.Fatalln("invlid destination IP:", dst)

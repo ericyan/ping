@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/ericyan/ping"
 )
@@ -25,7 +26,7 @@ func main() {
 		if err != nil {
 			log.Printf("target=%s status=fail reason=%s", target, err)
 		} else {
-			log.Printf("target=%s status=success rtt=%f", target, rtt)
+			log.Printf("target=%s status=success rtt=%f", target, float64(rtt)/float64(time.Millisecond))
 		}
 	}
 }

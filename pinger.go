@@ -159,7 +159,7 @@ func NewPinger() (*Pinger, error) {
 	return p, nil
 }
 
-func (p *Pinger) Ping(dst net.Addr) (float64, error) {
+func (p *Pinger) Ping(dst net.Addr) (time.Duration, error) {
 	p.mu.Lock()
 	p.recv[dst.String()] = make(chan *message)
 	defer func() {
@@ -197,8 +197,7 @@ func (p *Pinger) Ping(dst net.Addr) (float64, error) {
 		t := new(timestamp.Timestamp)
 		t.UnmarshalBinary(reply.body.(*icmp.Echo).Data[:8])
 
-		rtt := float64(reply.t.Sub(t.Time())) / float64(time.Millisecond)
-		return rtt, nil
+		return reply.t.Sub(t.Time()), nil
 	case <-time.After(time.Duration(p.Timeout) * time.Millisecond):
 		return 0, errors.New("timeout")
 	}

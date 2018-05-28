@@ -79,7 +79,7 @@ func main() {
 			for range time.Tick(time.Duration(*interval) * time.Second) {
 				rtt, err := pinger.Ping(&net.IPAddr{IP: ip})
 				if err == nil {
-					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Observe(rtt / 1000)
+					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Observe(float64(rtt) / float64(time.Second))
 				}
 
 				totalRequests.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Inc()

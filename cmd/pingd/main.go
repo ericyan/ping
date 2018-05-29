@@ -54,17 +54,18 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var dsts []*net.IPAddr
+	dsts := make(map[string]*net.IPAddr)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		dst, err := net.ResolveIPAddr("ip4", scanner.Text())
+		dst := scanner.Text()
+		addr, err := net.ResolveIPAddr("ip4", dst)
 		if err != nil {
 			log.Fatalln(err)
 		}
-		if dst.IP.String() != scanner.Text() {
-			log.Printf("Destination %s resolved to %s", scanner.Text(), dst.IP.String())
+		if addr.IP.String() != dst {
+			log.Printf("Destination %s resolved to %s", dst, addr.IP.String())
 		}
-		dsts = append(dsts, dst)
+		dsts[dst] = addr
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -77,17 +78,17 @@ func main() {
 	}
 	defer pinger.Close()
 
-	for _, dst := range dsts {
-		go func(dst *net.IPAddr) {
+	for dst, addr := range dsts {
+		go func(dst string, addr *net.IPAddr) {
 			for range time.Tick(time.Duration(*interval) * time.Second) {
-				rtt, err := pinger.Ping(dst)
+				rtt, err := pinger.Ping(addr)
 				if err == nil {
-					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": dst.IP.String()}).Observe(float64(rtt) / float64(time.Second))
+					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": dst}).Observe(float64(rtt) / float64(time.Second))
 				}
 
-				totalRequests.With(prometheus.Labels{"src": *bind, "dst": dst.IP.String()}).Inc()
+				totalRequests.With(prometheus.Labels{"src": *bind, "dst": dst}).Inc()
 			}
-		}(dst)
+		}(dst, addr)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

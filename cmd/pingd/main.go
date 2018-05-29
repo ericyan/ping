@@ -54,11 +54,19 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	var dsts []string
+	var dsts []*net.IPAddr
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		dsts = append(dsts, scanner.Text())
+		dst, err := net.ResolveIPAddr("ip4", scanner.Text())
+		if err != nil {
+			log.Fatalln(err)
+		}
+		if dst.IP.String() != scanner.Text() {
+			log.Printf("Destination %s resolved to %s", scanner.Text(), dst.IP.String())
+		}
+		dsts = append(dsts, dst)
 	}
+
 	if err := scanner.Err(); err != nil {
 		log.Fatalln(err)
 	}
@@ -70,21 +78,16 @@ func main() {
 	defer pinger.Close()
 
 	for _, dst := range dsts {
-		ip := net.ParseIP(dst)
-		if ip == nil {
-			log.Fatalln("invlid destination IP:", dst)
-		}
-
-		go func(ip net.IP) {
+		go func(dst *net.IPAddr) {
 			for range time.Tick(time.Duration(*interval) * time.Second) {
-				rtt, err := pinger.Ping(&net.IPAddr{IP: ip})
+				rtt, err := pinger.Ping(dst)
 				if err == nil {
-					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Observe(float64(rtt) / float64(time.Second))
+					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": dst.IP.String()}).Observe(float64(rtt) / float64(time.Second))
 				}
 
-				totalRequests.With(prometheus.Labels{"src": *bind, "dst": ip.String()}).Inc()
+				totalRequests.With(prometheus.Labels{"src": *bind, "dst": dst.IP.String()}).Inc()
 			}
-		}(ip)
+		}(dst)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ericyan/ping"
@@ -57,7 +58,7 @@ func main() {
 	dsts := make(map[string]*net.IPAddr)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		dst := scanner.Text()
+		dst := strings.ToLower(strings.TrimSpace(scanner.Text()))
 		addr, err := net.ResolveIPAddr("ip4", dst)
 		if err != nil {
 			log.Fatalln(err)

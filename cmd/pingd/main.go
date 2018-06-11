@@ -21,6 +21,7 @@ var (
 	port     = flag.Int("port", 9344, "port to listen on for HTTP requests")
 	interval = flag.Int("interval", 3, "seconds to wait between sending each packet")
 	dstList  = flag.String("list", "./dst.list", "path to destination list")
+	verbose  = flag.Bool("v", false, "enable verbose logging")
 )
 
 var (
@@ -85,6 +86,10 @@ func main() {
 				rtt, err := pinger.Ping(addr)
 				if err == nil {
 					rttHistogram.With(prometheus.Labels{"src": *bind, "dst": dst}).Observe(float64(rtt) / float64(time.Second))
+				}
+
+				if err != nil && *verbose {
+					log.Printf("dst=%s err=%s", dst, err)
 				}
 
 				totalRequests.With(prometheus.Labels{"src": *bind, "dst": dst}).Inc()

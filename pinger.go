@@ -15,44 +15,35 @@ import (
 
 type message struct {
 	t    time.Time
+	id   int
+	seq  int
 	body icmp.MessageBody
 	err  error
 }
 
-func parseMessage(id int, buf []byte) *message {
+func parseMessage(buf []byte) *message {
 	// Record receive time asap
 	now := time.Now()
 
 	msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), buf)
 	if err != nil {
-		return &message{now, nil, err}
+		return &message{now, 0, 0, nil, err}
 	}
 
 	switch msg.Type {
 	case ipv4.ICMPTypeEchoReply:
 		reply := msg.Body.(*icmp.Echo)
-
-		// Ignore messages for other pingers
-		if reply.ID != id {
-			return &message{now, nil, nil}
-		}
-
-		return &message{now, msg.Body, nil}
+		return &message{now, reply.ID, reply.Seq, msg.Body, nil}
 	case ipv4.ICMPTypeEcho:
 		// Ignore echo requests
-		return &message{now, nil, nil}
+		return &message{now, 0, 0, nil, nil}
 	case ipv4.ICMPTypeDestinationUnreachable:
 		reply := msg.Body.(*icmp.DstUnreach)
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
 		if err != nil {
-			return &message{now, nil, err}
+			return &message{now, 0, 0, nil, err}
 		}
 		req := msg.Body.(*icmp.Echo)
-
-		// Ignore messages for other pingers
-		if req.ID != id {
-			return &message{now, nil, nil}
-		}
 
 		switch msg.Code {
 		case 0:
@@ -70,19 +61,14 @@ func parseMessage(id int, buf []byte) *message {
 		default:
 			err = errors.New("destination unreachable")
 		}
-		return &message{now, msg.Body, err}
+		return &message{now, req.ID, req.Seq, msg.Body, err}
 	case ipv4.ICMPTypeTimeExceeded:
 		reply := msg.Body.(*icmp.TimeExceeded)
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
 		if err != nil {
-			return &message{now, nil, err}
+			return &message{now, 0, 0, nil, err}
 		}
 		req := msg.Body.(*icmp.Echo)
-
-		// Ignore messages for other pingers
-		if req.ID != id {
-			return &message{now, nil, nil}
-		}
 
 		switch msg.Code {
 		case 0:
@@ -92,17 +78,18 @@ func parseMessage(id int, buf []byte) *message {
 		default:
 			err = errors.New("time exceeded")
 		}
-		return &message{now, msg.Body, err}
+		return &message{now, req.ID, req.Seq, msg.Body, err}
 	default:
-		return &message{now, nil, nil}
+		return &message{now, 0, 0, nil, nil}
 	}
 }
 
 type Pinger struct {
 	id   int
+	seq  *rand.Rand
 	conn *icmp.PacketConn
 	mu   *sync.Mutex
-	recv map[string]chan *message
+	recv map[int]chan *message
 	stop chan bool
 
 	Timeout uint // Timeout in milliseconds
@@ -116,9 +103,10 @@ func NewPinger() (*Pinger, error) {
 	}
 	p := &Pinger{
 		id:      int(r.Int63() & 0xffff),
+		seq:     r,
 		conn:    conn,
 		mu:      new(sync.Mutex),
-		recv:    make(map[string]chan *message),
+		recv:    make(map[int]chan *message),
 		stop:    make(chan bool),
 		Timeout: 3000,
 	}
@@ -130,7 +118,7 @@ func NewPinger() (*Pinger, error) {
 			default:
 				p.conn.SetReadDeadline(time.Now().Add(time.Duration(p.Timeout) * time.Millisecond))
 
-				n, peer, err := p.conn.ReadFrom(buf)
+				n, _, err := p.conn.ReadFrom(buf)
 				if err != nil {
 					// Ignore read timeout errors
 					if neterr, ok := err.(*net.OpError); ok {
@@ -143,9 +131,14 @@ func NewPinger() (*Pinger, error) {
 					continue
 				}
 
-				result := parseMessage(p.id, buf[:n])
+				result := parseMessage(buf[:n])
 				if result.body != nil || result.err != nil {
-					if c, ok := p.recv[peer.String()]; ok {
+					// Ignore messages intended for other pingers
+					if result.id != p.id {
+						continue
+					}
+
+					if c, ok := p.recv[result.seq]; ok {
 						c <- result
 					}
 				}
@@ -160,11 +153,13 @@ func NewPinger() (*Pinger, error) {
 }
 
 func (p *Pinger) Ping(dst net.Addr) (time.Duration, error) {
+	seq := int(p.seq.Int63() & 0xffff)
+
 	p.mu.Lock()
-	p.recv[dst.String()] = make(chan *message)
+	p.recv[seq] = make(chan *message)
 	defer func() {
-		close(p.recv[dst.String()])
-		delete(p.recv, dst.String())
+		close(p.recv[seq])
+		delete(p.recv, seq)
 		p.mu.Unlock()
 	}()
 
@@ -177,7 +172,7 @@ func (p *Pinger) Ping(dst net.Addr) (time.Duration, error) {
 		Code: 0,
 		Body: &icmp.Echo{
 			ID:   p.id,
-			Seq:  1,
+			Seq:  seq,
 			Data: payload,
 		},
 	}).Marshal(nil)
@@ -190,7 +185,7 @@ func (p *Pinger) Ping(dst net.Addr) (time.Duration, error) {
 	}
 
 	select {
-	case reply := <-p.recv[dst.String()]:
+	case reply := <-p.recv[seq]:
 		if reply.err != nil {
 			return 0, reply.err
 		}

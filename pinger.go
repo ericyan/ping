@@ -84,7 +84,7 @@ func NewPinger() (*Pinger, error) {
 		mu:      new(sync.Mutex),
 		recv:    make(map[int]chan *message),
 		stop:    make(chan bool),
-		Timeout: 3000,
+		Timeout: 5000,
 	}
 
 	go func(p *Pinger) {

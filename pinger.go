@@ -45,23 +45,7 @@ func parseMessage(buf []byte) *message {
 		}
 		req := msg.Body.(*icmp.Echo)
 
-		switch msg.Code {
-		case 0:
-			err = errors.New("net unreachable")
-		case 1:
-			err = errors.New("host unreachable")
-		case 2:
-			err = errors.New("protocol unreachable")
-		case 3:
-			err = errors.New("port unreachable")
-		case 4:
-			err = errors.New("fragmentation needed")
-		case 5:
-			err = errors.New("source route failed")
-		default:
-			err = errors.New("destination unreachable")
-		}
-		return &message{now, req.ID, req.Seq, msg.Body, err}
+		return &message{now, req.ID, req.Seq, msg.Body, errors.New("destination unreachable")}
 	case ipv4.ICMPTypeTimeExceeded:
 		reply := msg.Body.(*icmp.TimeExceeded)
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
@@ -70,15 +54,7 @@ func parseMessage(buf []byte) *message {
 		}
 		req := msg.Body.(*icmp.Echo)
 
-		switch msg.Code {
-		case 0:
-			err = errors.New("TTL exceeded in transit")
-		case 1:
-			err = errors.New("fragment reassembly time exceeded")
-		default:
-			err = errors.New("time exceeded")
-		}
-		return &message{now, req.ID, req.Seq, msg.Body, err}
+		return &message{now, req.ID, req.Seq, msg.Body, errors.New("time exceeded")}
 	default:
 		return &message{now, 0, 0, nil, nil}
 	}

@@ -32,13 +32,21 @@ func parseMessage(buf []byte) *message {
 
 	switch msg.Type {
 	case ipv4.ICMPTypeEchoReply:
-		reply := msg.Body.(*icmp.Echo)
+		reply, ok := msg.Body.(*icmp.Echo)
+		if !ok {
+			return &message{now, 0, 0, nil, errors.New("type assertion failed")}
+		}
+
 		return &message{now, reply.ID, reply.Seq, msg.Body, nil}
 	case ipv4.ICMPTypeEcho:
 		// Ignore echo requests
 		return &message{now, 0, 0, nil, nil}
 	case ipv4.ICMPTypeDestinationUnreachable:
-		reply := msg.Body.(*icmp.DstUnreach)
+		reply, ok := msg.Body.(*icmp.DstUnreach)
+		if !ok {
+			return &message{now, 0, 0, nil, errors.New("type assertion failed")}
+		}
+
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
 		if err != nil {
 			return &message{now, 0, 0, nil, err}
@@ -47,7 +55,11 @@ func parseMessage(buf []byte) *message {
 
 		return &message{now, req.ID, req.Seq, msg.Body, errors.New("destination unreachable")}
 	case ipv4.ICMPTypeTimeExceeded:
-		reply := msg.Body.(*icmp.TimeExceeded)
+		reply, ok := msg.Body.(*icmp.TimeExceeded)
+		if !ok {
+			return &message{now, 0, 0, nil, errors.New("type assertion failed")}
+		}
+
 		msg, err := icmp.ParseMessage(ipv4.ICMPTypeEchoReply.Protocol(), reply.Data[ipv4.HeaderLen:])
 		if err != nil {
 			return &message{now, 0, 0, nil, err}

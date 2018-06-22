@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ericyan/ping/internal/timestamp"
@@ -74,7 +75,7 @@ func parseMessage(buf []byte) *message {
 
 type Pinger struct {
 	id   int
-	seq  *rand.Rand
+	seq  uint64
 	conn *icmp.PacketConn
 	mu   *sync.Mutex
 	recv map[int]chan *message
@@ -91,7 +92,7 @@ func NewPinger() (*Pinger, error) {
 	}
 	p := &Pinger{
 		id:      int(r.Int63() & 0xffff),
-		seq:     r,
+		seq:     0,
 		conn:    conn,
 		mu:      new(sync.Mutex),
 		recv:    make(map[int]chan *message),
@@ -141,7 +142,7 @@ func NewPinger() (*Pinger, error) {
 }
 
 func (p *Pinger) Ping(dst net.Addr) (time.Duration, error) {
-	seq := int(p.seq.Int63() & 0xffff)
+	seq := int(atomic.AddUint64(&p.seq, 1) & 0xffff)
 
 	p.mu.Lock()
 	p.recv[seq] = make(chan *message)

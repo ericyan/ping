@@ -74,7 +74,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	pinger, err := ping.NewPinger()
+	pinger, err := ping.NewICMP()
 	if err != nil {
 		log.Fatalln(err)
 	}

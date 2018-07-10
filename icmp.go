@@ -142,6 +142,11 @@ func NewICMP() (Pinger, error) {
 }
 
 func (p *icmpPinger) Ping(dst net.Addr) (time.Duration, error) {
+	dstAddr, ok := dst.(*net.IPAddr)
+	if !ok {
+		return 0, errors.New("dst must be a *net.IPAddr")
+	}
+
 	seq := int(atomic.AddUint64(&p.seq, 1) & 0xffff)
 
 	p.mu.Lock()
@@ -169,7 +174,7 @@ func (p *icmpPinger) Ping(dst net.Addr) (time.Duration, error) {
 		return 0, err
 	}
 
-	if _, err := p.conn.WriteTo(req, dst); err != nil {
+	if _, err := p.conn.WriteTo(req, dstAddr); err != nil {
 		return 0, err
 	}
 

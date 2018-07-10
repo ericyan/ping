@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"strconv"
 	"sync"
 	"time"
 
@@ -98,17 +97,9 @@ func NewTCP() (Pinger, error) {
 }
 
 func (p *tcpPinger) Ping(dst net.Addr) (time.Duration, error) {
-	host, port, err := net.SplitHostPort(dst.String())
-	if err != nil {
-		return 0, err
-	}
-	dstAddr, err := net.ResolveIPAddr("ip4", host)
-	if err != nil {
-		return 0, err
-	}
-	dstPort, err := strconv.Atoi(port)
-	if err != nil {
-		return 0, err
+	dstAddr, ok := dst.(*net.TCPAddr)
+	if !ok {
+		return 0, errors.New("dst must be a *net.TCPAddr")
 	}
 
 	seq := uint32(123456789)
@@ -123,7 +114,7 @@ func (p *tcpPinger) Ping(dst net.Addr) (time.Duration, error) {
 
 	syn := &layers.TCP{
 		SrcPort: layers.TCPPort(p.port),
-		DstPort: layers.TCPPort(dstPort),
+		DstPort: layers.TCPPort(dstAddr.Port),
 		Seq:     seq,
 		SYN:     true,
 	}
@@ -142,7 +133,7 @@ func (p *tcpPinger) Ping(dst net.Addr) (time.Duration, error) {
 		return 0, err
 	}
 
-	if _, err := p.conn.WriteTo(buf.Bytes(), dstAddr); err != nil {
+	if _, err := p.conn.WriteTo(buf.Bytes(), &net.IPAddr{dstAddr.IP, dstAddr.Zone}); err != nil {
 		return 0, err
 	}
 

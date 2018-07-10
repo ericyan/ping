@@ -19,6 +19,8 @@ import (
 var (
 	bind     = flag.String("bind", "0.0.0.0", "interface to bind")
 	port     = flag.Int("port", 9344, "port to listen on for HTTP requests")
+	icmp     = flag.Bool("icmp", true, "use ICMP ping")
+	tcp      = flag.Bool("tcp", false, "use TCP ping")
 	interval = flag.Int("interval", 3, "seconds to wait between sending each packet")
 	dstList  = flag.String("list", "./dst.list", "path to destination list")
 	verbose  = flag.Bool("v", false, "enable verbose logging")
@@ -56,16 +58,22 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	dsts := make(map[string]*net.IPAddr)
+	dsts := make(map[string]net.Addr)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		dst := strings.ToLower(strings.TrimSpace(scanner.Text()))
-		addr, err := net.ResolveIPAddr("ip4", dst)
+
+		var addr net.Addr
+		if *tcp {
+			addr, err = net.ResolveTCPAddr("tcp4", dst)
+		} else {
+			addr, err = net.ResolveIPAddr("ip4", dst)
+		}
 		if err != nil {
 			log.Fatalln(err)
 		}
-		if addr.IP.String() != dst {
-			log.Printf("Destination %s resolved to %s", dst, addr.IP.String())
+		if addr.String() != dst {
+			log.Printf("Destination %s resolved to %s", dst, addr.String())
 		}
 		dsts[dst] = addr
 	}
@@ -74,14 +82,19 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	pinger, err := ping.NewICMP()
+	var pinger ping.Pinger
+	if *tcp {
+		pinger, err = ping.NewTCP()
+	} else {
+		pinger, err = ping.NewICMP()
+	}
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer pinger.Close()
 
 	for dst, addr := range dsts {
-		go func(dst string, addr *net.IPAddr) {
+		go func(dst string, addr net.Addr) {
 			for range time.Tick(time.Duration(*interval) * time.Second) {
 				rtt, err := pinger.Ping(addr)
 				if err == nil {

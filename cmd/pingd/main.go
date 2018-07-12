@@ -11,13 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericyan/iputil"
 	"github.com/ericyan/ping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	bind     = flag.String("bind", "0.0.0.0", "interface to bind")
+	bind     = flag.String("bind", "", "interface to bind")
 	port     = flag.Int("port", 9344, "port to listen on for HTTP requests")
 	icmp     = flag.Bool("icmp", true, "use ICMP ping")
 	tcp      = flag.Bool("tcp", false, "use TCP ping")
@@ -51,6 +52,15 @@ func init() {
 
 func main() {
 	flag.Parse()
+
+	if *bind == "" {
+		addr, err := iputil.DefaultIPv4()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		*bind = addr.IP.String()
+	}
 
 	f, err := os.Open(*dstList)
 	defer f.Close()

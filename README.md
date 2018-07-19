@@ -1,7 +1,6 @@
 # ping
 
-Send ICMP ECHO_REQUEST in pure Go. `cmd/ping` implements a command-line
-utility similar to good old `ping`.
+Send ICMP ECHO_REQUEST in pure Go.
 
 ## pingd
 

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/ericyan/iputil"
-	"github.com/ericyan/ping"
+	"github.com/ericyan/pingd/pkg/ping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )

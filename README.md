@@ -1,13 +1,9 @@
-# ping
+# pingd
 
-Send ICMP ECHO_REQUEST in pure Go.
+pingd is a Prometheus exporter that keep tracks of RTT and packet lost
+rate for multiple hosts. It is the modern replacement for Smokeping.
 
-## pingd
-
-[pingd] is a Prometheus exporter that keep tracks of RTT and packet lost
-rate for multiple hosts.
-
-### Docker image
+## Docker image
 
 To build the Docker image from source:
 
@@ -22,5 +18,3 @@ sudo docker run -d --restart=always --name=pingd \
   --net=host --volume=/path/to/dst.list:/dst.list \
   ericyan/pingd /pingd -v
 ```
-
-[pingd]: https://github.com/ericyan/ping/tree/master/cmd/pingd

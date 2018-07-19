@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ericyan/ping/internal/timestamp"
+	"github.com/ericyan/pingd/internal/timestamp"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 )
